@@ -5,11 +5,13 @@ import '../models/product.dart';
 class ProductCard extends StatelessWidget {
   final Product product;
   final VoidCallback onAdd;
+  final VoidCallback? onDelete;
 
   const ProductCard({
     super.key,
     required this.product,
     required this.onAdd,
+    this.onDelete,
   });
 
   @override
@@ -30,10 +32,12 @@ class ProductCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
-            child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-              child: product.isLocalImage
-                  ? Image.file(
+            child: Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                  child: product.isLocalImage
+                      ? Image.file(
                       File(product.imageUrl),
                       fit: BoxFit.cover,
                       width: double.infinity,
@@ -51,6 +55,28 @@ class ProductCard extends StatelessWidget {
                         child: const Icon(Icons.error),
                       ),
                     ),
+                ),
+                if (onDelete != null)
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: GestureDetector(
+                      onTap: onDelete,
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.6),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.close,
+                          size: 18,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
           Padding(

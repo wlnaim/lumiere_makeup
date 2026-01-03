@@ -38,7 +38,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     });
   }
 
-  void _confirmPayment() {
+  void _confirmPayment() async {
     final received = double.tryParse(_amountController.text) ?? 0.0;
     
     if (received < widget.total) {
@@ -54,7 +54,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final change = received - widget.total;
 
     // Navegar a la pantalla de pago exitoso
-    Navigator.push(
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => PaymentSuccessScreen(
@@ -65,6 +65,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         ),
       ),
     );
+    
+    // Si se completó la venta, regresar true para limpiar el carrito
+    if (result == true && context.mounted) {
+      Navigator.pop(context, true);
+    }
   }
 
   @override

@@ -46,9 +46,14 @@ class _CartScreenState extends State<CartScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF4A4A4A),
-      body: SafeArea(
+    return WillPopScope(
+      onWillPop: () async {
+        Navigator.pop(context, List<CartItem>.from(_cartItems));
+        return false;
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFF4A4A4A),
+        body: SafeArea(
         child: Column(
           children: [
             // Header
@@ -57,7 +62,7 @@ class _CartScreenState extends State<CartScreen> {
               child: Row(
                 children: [
                   IconButton(
-                    onPressed: () => Navigator.pop(context, _cartItems),
+                    onPressed: () => Navigator.pop(context, List<CartItem>.from(_cartItems)),
                     icon: const Icon(Icons.arrow_back, color: Colors.white),
                   ),
                   const Expanded(
@@ -110,15 +115,55 @@ class _CartScreenState extends State<CartScreen> {
                     : Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Padding(
-                            padding: EdgeInsets.all(24.0),
-                            child: Text(
-                              'Tu Carrito',
-                              style: TextStyle(
-                                fontSize: 28,
-                                fontWeight: FontWeight.bold,
-                                fontFamily: 'serif',
-                              ),
+                          Padding(
+                            padding: const EdgeInsets.all(24.0),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Tu Carrito',
+                                  style: TextStyle(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.bold,
+                                    fontFamily: 'serif',
+                                  ),
+                                ),
+                                IconButton(
+                                  onPressed: () {
+                                    showDialog(
+                                      context: context,
+                                      builder: (BuildContext context) {
+                                        return AlertDialog(
+                                          title: const Text('Vaciar carrito'),
+                                          content: const Text('¿Estás seguro de que deseas eliminar todos los productos del carrito?'),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () => Navigator.of(context).pop(),
+                                              child: const Text('Cancelar'),
+                                            ),
+                                            TextButton(
+                                              onPressed: () {
+                                                setState(() {
+                                                  _cartItems.clear();
+                                                });
+                                                Navigator.of(context).pop();
+                                              },
+                                              style: TextButton.styleFrom(
+                                                foregroundColor: Colors.red,
+                                              ),
+                                              child: const Text('Vaciar'),
+                                            ),
+                                          ],
+                                        );
+                                      },
+                                    );
+                                  },
+                                  icon: const Icon(Icons.delete_outline),
+                                  color: Colors.red,
+                                  iconSize: 28,
+                                  tooltip: 'Vaciar carrito',
+                                ),
+                              ],
                             ),
                           ),
                           Expanded(
@@ -321,6 +366,7 @@ class _CartScreenState extends State<CartScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

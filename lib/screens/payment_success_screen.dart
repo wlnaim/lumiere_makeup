@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/cart_item.dart';
+import '../services/email_service.dart';
 
 class PaymentSuccessScreen extends StatelessWidget {
   final double total;
@@ -14,6 +15,214 @@ class PaymentSuccessScreen extends StatelessWidget {
     required this.change,
     required this.cartItems,
   });
+
+  /// Muestra un diálogo para solicitar el correo del cliente y enviar el ticket
+  Future<void> _sendReceiptByEmail(BuildContext context) async {
+    final TextEditingController nombreController = TextEditingController();
+    final TextEditingController correoController = TextEditingController();
+    
+    // Capturar los valores antes de cerrar el diálogo
+    String? nombre;
+    String? correo;
+
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            'Enviar Ticket por Correo',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Color(0xFFC77D9A),
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Ingresa los datos del cliente:',
+                style: TextStyle(fontSize: 14, color: Colors.black87),
+              ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: nombreController,
+                decoration: InputDecoration(
+                  labelText: 'Nombre del Cliente',
+                  prefixIcon: const Icon(Icons.person_outline, color: Color(0xFFC77D9A)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFFC77D9A), width: 2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: correoController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: InputDecoration(
+                  labelText: 'Correo Electrónico',
+                  prefixIcon: const Icon(Icons.email_outlined, color: Color(0xFFC77D9A)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFFC77D9A), width: 2),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text(
+                'Cancelar',
+                style: TextStyle(color: Colors.grey),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final nombreText = nombreController.text.trim();
+                final correoText = correoController.text.trim();
+
+                if (nombreText.isEmpty || correoText.isEmpty) {
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    const SnackBar(
+                      content: Text('Por favor completa todos los campos'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  return;
+                }
+
+                if (!correoText.contains('@') || !correoText.contains('.')) {
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    const SnackBar(
+                      content: Text('Por favor ingresa un correo válido'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  return;
+                }
+
+                // Guardar los valores capturados
+                nombre = nombreText;
+                correo = correoText;
+                
+                // Cerrar el diálogo y retornar true para proceder
+                Navigator.of(dialogContext).pop(true);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFC77D9A),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text('Enviar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    // Esperar un poco para que la animación del diálogo termine
+    await Future.delayed(const Duration(milliseconds: 100));
+    
+    // Dispose controllers después de que el diálogo se cierra completamente
+    nombreController.dispose();
+    correoController.dispose();
+    
+    // Si el usuario canceló, no hacer nada
+    if (result != true || nombre == null || correo == null) {
+      return;
+    }
+    
+    // Mostrar diálogo de carga
+    if (!context.mounted) return;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext loadingContext) {
+        return const Center(
+          child: Card(
+            margin: EdgeInsets.all(40),
+            child: Padding(
+              padding: EdgeInsets.all(32.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFC77D9A)),
+                  ),
+                  SizedBox(height: 24),
+                  Text(
+                    'Enviando ticket...',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    // Enviar el correo
+    final success = await EmailService.enviarTicketEmail(
+      nombreCliente: nombre!,
+      correoCliente: correo!,
+      cartItems: cartItems,
+      total: total,
+      montoRecibido: received,
+      cambio: change,
+    );
+
+    // Cerrar el diálogo de carga
+    if (context.mounted) {
+      Navigator.of(context).pop();
+    }
+
+    if (success) {
+      // Si el email se envió exitosamente, regresar al home
+      if (context.mounted) {
+        // Cerrar todas las pantallas hasta llegar al home
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        
+        // Mostrar confirmación de éxito
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Ticket enviado exitosamente a $correo'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } else {
+      // Si hubo un error, mostrar mensaje pero quedarse en la pantalla
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ Error al enviar el ticket. Verifica tu conexión o la configuración de EmailJS.'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    }
+  }
 
   void _sendReceipt(BuildContext context, String method) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -268,7 +477,7 @@ class PaymentSuccessScreen extends StatelessWidget {
                                     child: Material(
                                       color: Colors.transparent,
                                       child: InkWell(
-                                        onTap: () => _sendReceipt(context, 'Correo'),
+                                        onTap: () => _sendReceiptByEmail(context),
                                         borderRadius: BorderRadius.circular(16),
                                         child: const Column(
                                           mainAxisAlignment: MainAxisAlignment.center,
@@ -357,8 +566,8 @@ class PaymentSuccessScreen extends StatelessWidget {
                 height: 56,
                 child: ElevatedButton(
                   onPressed: () {
-                    // Volver al home y limpiar el carrito
-                    Navigator.of(context).popUntil((route) => route.isFirst);
+                    // Devolver true para indicar que se completó la venta
+                    Navigator.of(context).pop(true);
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFC77D9A),

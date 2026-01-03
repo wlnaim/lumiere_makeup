@@ -13,7 +13,19 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
+enum SortOption {
+  recent('Más recientes'),
+  alphabetical('Alfabético A-Z');
+
+  final String label;
+  const SortOption(this.label);
+}
+
 class _HomeScreenState extends State<HomeScreen> {
+  SortOption _currentSort = SortOption.recent;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
   final List<Product> _products = [
     Product(
       id: '1',
@@ -49,6 +61,25 @@ class _HomeScreenState extends State<HomeScreen> {
 
   int get _cartCount => _cartItems.fold(0, (sum, item) => sum + item.quantity);
   double get _cartTotal => _cartItems.fold(0, (sum, item) => sum + item.totalPrice);
+
+  List<Product> get _sortedProducts {
+    // Filtrar por búsqueda
+    List<Product> filteredProducts = _products;
+    if (_searchQuery.isNotEmpty) {
+      filteredProducts = _products.where((product) {
+        return product.name.toLowerCase().contains(_searchQuery.toLowerCase());
+      }).toList();
+    }
+    
+    // Ordenar productos filtrados
+    final products = List<Product>.from(filteredProducts);
+    if (_currentSort == SortOption.recent) {
+      products.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    } else {
+      products.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    }
+    return products;
+  }
 
   void _addToCart(Product product) {
     setState(() {
@@ -94,8 +125,85 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
+  void _deleteProduct(String productId) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Eliminar producto'),
+          content: const Text('¿Estás seguro de que deseas eliminar este producto?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  _products.removeWhere((product) => product.id == productId);
+                  // También eliminar del carrito si existe
+                  _cartItems.removeWhere((item) => item.product.id == productId);
+                });
+                Navigator.of(context).pop();
+              },
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.red,
+              ),
+              child: const Text('Eliminar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showSortMenu() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              child: Text(
+                'Ordenar por',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const Divider(),
+            ...SortOption.values.map((option) => ListTile(
+              leading: Icon(
+                _currentSort == option ? Icons.check_circle : Icons.radio_button_unchecked,
+                color: _currentSort == option ? const Color(0xFFC77D9A) : Colors.grey,
+              ),
+              title: Text(option.label),
+              onTap: () {
+                setState(() {
+                  _currentSort = option;
+                });
+                Navigator.pop(context);
+              },
+            )),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Lumière'),
@@ -123,9 +231,26 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 8),
                 // Search Bar
                 TextField(
+                  controller: _searchController,
+                  onChanged: (value) {
+                    setState(() {
+                      _searchQuery = value;
+                    });
+                  },
                   decoration: InputDecoration(
                     hintText: 'Buscar productos...',
                     prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, color: Colors.grey),
+                            onPressed: () {
+                              setState(() {
+                                _searchController.clear();
+                                _searchQuery = '';
+                              });
+                            },
+                          )
+                        : null,
                     filled: true,
                     fillColor: const Color(0xFFF8F0F5).withOpacity(0.5),
                     border: OutlineInputBorder(
@@ -139,42 +264,78 @@ class _HomeScreenState extends State<HomeScreen> {
                 // Filter Button
                 Align(
                   alignment: Alignment.centerRight,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8F0F5),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.tune, size: 16, color: Colors.black54),
-                        SizedBox(width: 8),
-                        Text('Más recientes', style: TextStyle(fontSize: 14)),
-                        Icon(Icons.keyboard_arrow_down, size: 18, color: Colors.black54),
-                      ],
+                  child: GestureDetector(
+                    onTap: _showSortMenu,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8F0F5),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.tune, size: 16, color: Colors.black54),
+                          const SizedBox(width: 8),
+                          Text(_currentSort.label, style: const TextStyle(fontSize: 14)),
+                          const Icon(Icons.keyboard_arrow_down, size: 18, color: Colors.black54),
+                        ],
+                      ),
                     ),
                   ),
                 ),
                 const SizedBox(height: 16),
                 // Product Grid
                 Expanded(
-                  child: GridView.builder(
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      childAspectRatio: 0.7,
-                      crossAxisSpacing: 16,
-                      mainAxisSpacing: 16,
-                    ),
-                    itemCount: _products.length,
-                    itemBuilder: (context, index) {
-                      return ProductCard(
-                        product: _products[index],
-                        onAdd: () => _addToCart(_products[index]),
-                      );
-                    },
-                  ),
+                  child: _sortedProducts.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.search_off,
+                                size: 80,
+                                color: Colors.grey[300],
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'No se encontraron productos',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                              if (_searchQuery.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Intenta con otro nombre',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey[500],
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        )
+                      : GridView.builder(
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            childAspectRatio: 0.7,
+                            crossAxisSpacing: 16,
+                            mainAxisSpacing: 16,
+                          ),
+                          itemCount: _sortedProducts.length,
+                          itemBuilder: (context, index) {
+                            final product = _sortedProducts[index];
+                            return ProductCard(
+                              product: product,
+                              onAdd: () => _addToCart(product),
+                              onDelete: () => _deleteProduct(product.id),
+                            );
+                          },
+                        ),
                 ),
               ],
             ),
